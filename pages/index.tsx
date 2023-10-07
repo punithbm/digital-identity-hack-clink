@@ -88,11 +88,11 @@ export default function Home() {
             const { data: profile } = activeProfile;
             if (profile == null) {
                 await disconnect();
-                toast.info("Your wallet doesn't have lens account");
+                // toast.info("Your wallet doesn't have lens account");
             }
         } catch(e){
             await disconnect();
-            toast.info("Your wallet doesn't have lens account");
+            // toast.info("Your wallet doesn't have lens account");
         }
       }
     }
