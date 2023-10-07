@@ -16,7 +16,6 @@ import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
 import { Web3AuthNoModal } from "@web3auth/no-modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { serializeError } from "eth-rpc-errors";
-import { ethers } from "ethers";
 import React, { useContext, useEffect, useState } from "react";
 import { ToastContainer } from "react-toastify";
 import { toast } from "react-toastify";
@@ -41,10 +40,21 @@ import {
   useWalletLogin,
   useWalletLogout,
   useActiveProfile,
+  useActiveWallet,
 } from "@lens-protocol/react-web";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { InjectedConnector } from "wagmi/connectors/injected";
 import { Magic } from "magic-sdk";
+import { IPaymaster, BiconomyPaymaster } from "@biconomy/paymaster";
+import { IBundler, Bundler } from "@biconomy/bundler";
+import {
+  BiconomySmartAccount,
+  BiconomySmartAccountV2,
+  DEFAULT_ENTRYPOINT_ADDRESS,
+} from "@biconomy/account";
+import { ethers } from "ethers";
+import { saveToLocalStorage } from "../utils";
+import { useRouter } from "next/router";
 
 export type THandleStep = {
   handleSteps: (step: number) => void;
@@ -81,14 +91,56 @@ export default function Home() {
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(
     null
   );
-  const { execute: login, isPending: isLoginPending } = useWalletLogin();
+  const [loggedIn, setLoggedIn] = useState(false);
+  const {
+    execute: login,
+    error: loginError,
+    isPending: isLoginPending,
+  } = useWalletLogin();
+
   const { execute: logout } = useWalletLogout();
-  const { data: wallet, loading } = useActiveProfile();
+  const { data: wallet, loading: walletLoading } = useActiveWallet();
+  const {
+    data: profile,
+    error: profileerror,
+    loading: profileLoading,
+  } = useActiveProfile();
   const { disconnectAsync } = useDisconnect();
+
+  const router = useRouter();
 
   const { connectAsync } = useConnect({
     connector: new InjectedConnector(),
   });
+
+  useEffect(() => {
+    async function initLens() {
+      if (loggedIn) {
+        console.log(profile, "profile");
+        console.log(profileerror, "profileerror");
+        console.log(wallet, "wallet");
+        console.log(walletLoading, "walletLoading");
+        console.log(profileLoading, "profileLoading");
+        if (profile !== null) {
+          dispatch({
+            type: ACTIONS.LOGGED_IN_VIA,
+            payload: LOGGED_IN.GOOGLE,
+          });
+          dispatch({
+            type: ACTIONS.SET_ADDRESS,
+            payload: address,
+          });
+          setWalletAddress(address ?? "");
+          setLoader(false);
+          saveToLocalStorage("address", address);
+          handleSteps(ESTEPS.THREE);
+        } else {
+          toast.info("Your wallet doesn't have lens account");
+        }
+      }
+    }
+    initLens();
+  }, [loggedIn]);
 
   const onLoginClick = async () => {
     if (isConnected) {
@@ -100,19 +152,16 @@ export default function Home() {
     if (connector instanceof InjectedConnector) {
       const walletClient = await connector.getWalletClient();
 
-      const loginRes = await login({
+      await login({
         address: walletClient.account.address,
       });
+      await connectWithBiconomy(await connector?.getProvider(), "lens");
+      setLoggedIn(true);
     }
   };
 
   useEffect(() => {
     const item = localStorage.getItem("isGoogleLogin");
-    console.log(
-      localStorage.getItem("isGoogleLogin ") &&
-        localStorage.getItem("isGoogleLogin ") === "true",
-      "storage"
-    );
     if (item) {
       handleSteps(ESTEPS.THREE);
     } else {
@@ -294,63 +343,140 @@ export default function Home() {
   const [magic, setMagic] = useState<any>();
   const [showOtp, setShowOtp] = useState(false);
   const [signinLoading, setSigninLoading] = useState(false);
-  const [verifyOtpLoader, setVerifyOtpLoader] = useState(false);
-  const [loginItem, setLoginItem] = useState<any>();
-  useEffect(() => {
-    if (window !== undefined) {
-      const magicSdk = new Magic("pk_live_8A226AACC0D8D290");
-      // magicSdk.wallet.connectWithUI();
-      setMagic(magicSdk);
-    }
-  }, []);
+  const [showMsg, setShowMsg] = useState(false);
 
-  const handleVerifyOtp = (val: string) => {
-    setVerifyOtpLoader(true);
-    if (val.length === 6) {
-      loginItem.emit("verify-email-otp", val);
-      loginItem
-        .on("invalid-email-otp", () => {
-          loginItem.emit("cancel");
-        })
-        .on("done", (result: any) => {
-          // is called when the Promise resolves
-          // convey login success to user
-          console.log(result, "success");
-          // DID Token returned in result
-          const didToken = result;
-        });
+  useEffect(() => {
+    async function initMagic() {
+      if (window !== undefined) {
+        console.log(window.location.origin, "window.location.origin");
+        console.log("came inside if");
+        setLoader(true);
+        const magicSdk = new Magic("pk_live_8A226AACC0D8D290");
+        const prov = await magicSdk.wallet.getProvider();
+        setProvider(prov);
+        setMagic(magicSdk);
+        const isLoggedIn = await magicSdk.user.isLoggedIn();
+        console.log(isLoggedIn, "isloggedin");
+        console.log(router.query, "query");
+        if (router && router.query.magic_credential) {
+          console.log("came inside callback");
+          try {
+            await magicSdk.auth.loginWithCredential();
+
+            const userMetadata = await magicSdk.user.getMetadata();
+            saveToLocalStorage("email", userMetadata.email);
+            connectWithBiconomy(magicSdk.rpcProvider, "magic");
+          } catch (e) {
+            console.error(e);
+          }
+        } else if (isLoggedIn) {
+          console.log("came inside isloggedin");
+          const userMetadata = await magicSdk.user.getMetadata();
+          saveToLocalStorage("email", userMetadata.email);
+          connectWithBiconomy(magicSdk.rpcProvider, "magic");
+        } else {
+          setLoader(false);
+        }
+      }
+    }
+    initMagic();
+  }, [router]);
+
+  const signOutMagic = async () => {
+    await magic.user.logout();
+    localStorage.removeItem("isGoogleLogin");
+    localStorage.removeItem("isConnected");
+    setWalletAddress("");
+    setStep(ESTEPS.ONE);
+
+    dispatch({
+      type: ACTIONS.LOGGED_IN_VIA,
+      payload: "",
+    });
+    dispatch({
+      type: ACTIONS.LOGOUT,
+      payload: "",
+    });
+    dispatch({
+      type: ACTIONS.SET_ADDRESS,
+      payload: "",
+    });
+  };
+
+  const connectWithBiconomy = async (rpcProvider: any, logintype: string) => {
+    setLoader(true);
+    try {
+      const web3Provider = new ethers.providers.Web3Provider(
+        rpcProvider,
+        "any"
+      );
+
+      const paymaster = new BiconomyPaymaster({
+        paymasterUrl:
+          "https://paymaster.biconomy.io/api/v1/84531/76v47JPQ6.7a881a9f-4cec-45e0-95e9-c39c71ca54f4",
+      });
+
+      const bundler: IBundler = new Bundler({
+        bundlerUrl:
+          "https://bundler.biconomy.io/api/v2/84531/nJPK7B3ru.dd7f7861-190d-41bd-af80-6877f74b8f44",
+        chainId: 84531,
+        entryPointAddress: DEFAULT_ENTRYPOINT_ADDRESS,
+      });
+      let wallet = new BiconomySmartAccount({
+        signer: web3Provider.getSigner(),
+        chainId: 84531,
+        bundler: bundler,
+        paymaster: paymaster,
+      });
+      wallet = await wallet.init({
+        accountIndex: 0,
+      });
+      const scw = await wallet.getSmartAccountAddress();
+      console.log(scw, "new scw");
+      dispatch({
+        type: ACTIONS.LOGGED_IN_VIA,
+        payload: LOGGED_IN.GOOGLE,
+      });
+      dispatch({
+        type: ACTIONS.SET_ADDRESS,
+        payload: scw,
+      });
+      dispatch({
+        type: ACTIONS.SET_SMART_ACCOUNT,
+        payload: wallet,
+      });
+      setWalletAddress(scw ?? "");
+      setLoader(false);
+      saveToLocalStorage("address", scw);
+      saveToLocalStorage("loginType", logintype);
+      handleSteps(ESTEPS.THREE);
+    } catch (error) {
+      setLoader(false);
+      toast.error("Something went wrong");
+      console.error(error);
     }
   };
 
   const connectMagicWallet = async (val: string) => {
     setSigninLoading(true);
-    const login = magic.auth.loginWithEmailOTP({
+    const redirectURI = `${window.location.origin}`;
+    const loginWithLink = magic.auth.loginWithMagicLink({
       email: val,
       showUI: false,
+      redirectURI: redirectURI,
     });
-    setLoginItem(login);
-
-    login
-      .on("email-otp-sent", () => {
-        // The email has been sent to the user
-        console.log("OTP sent");
+    loginWithLink
+      .on("email-sent", (result: any) => {
         setSigninLoading(false);
-        toast.success("OTP sent!");
-        setShowOtp(true);
-      })
-      .on("invalid-email-otp", () => {
-        login.emit("cancel");
+        setShowMsg(true);
+        toast.success("Magic link has been sent!. Check your mail");
       })
       .on("done", (result: any) => {
-        // is called when the Promise resolves
-        // convey login success to user
-        console.log(result, "success");
-
-        // DID Token returned in result
-        const didToken = result;
+        toast.success("Login sussessful through magic link");
       })
       .on("error", (reason: any) => {
         setSigninLoading(false);
+        toast.error("Something went wrong!");
         console.error(reason, "errorqw");
       })
       .on("settled", () => {
@@ -371,7 +497,7 @@ export default function Home() {
             handleLensLogin={onLoginClick}
             showOtp={showOtp}
             loading={signinLoading}
-            verifyLoading={verifyOtpLoader}
+            showMsg={showMsg}
           />
         );
       case ESTEPS.THREE:
@@ -429,7 +555,7 @@ export default function Home() {
         step={step}
         handleSteps={handleSteps}
         onHamburgerClick={onHamburgerClick}
-        signOut={signOut}
+        signOut={signOutMagic}
         setWalletAddress={setWalletAddress}
         loader={loader}
         initLoader={initLoader}
@@ -458,7 +584,7 @@ export default function Home() {
           signIn={signIn}
           handleSteps={handleSteps}
         />
-        <Footer />
+        {/* <Footer /> */}
       </div>
     </>
   );

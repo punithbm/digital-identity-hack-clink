@@ -100,12 +100,12 @@ const Header = (props: IHeader) => {
         <header className="relative z-[9]">
             <div className="h-[40px] hidden md:block"></div>
             <div className="sticky top-0 flex items-center justify-center">
-                <div className="w-[95%] max-w-[600px] h-[64px] rounded-2xl bg-[#0C0421] text-center flex items-center justify-between relative z-[9]">
+                <div className={`w-[95%] max-w-[600px] h-[64px] rounded-lg  text-center flex items-center justify-between relative z-[9] bg-[#7356C6] border-2 border-[#010101]`}>
                     {step === 1 ? (
                         <div className="flex gap-1 pl-2">
                             <Image src={icons.logo2} alt="logo" className="w-10" />
                             <p className="text-[16px] font-bold text-white self-center">
-                                Clink Safe
+                                Micropay
                             </p>
                         </div>
                     ) : (
@@ -118,12 +118,12 @@ const Header = (props: IHeader) => {
 
                     <div className="flex gap-4 items-center pr-2">
                         <button
-                            className={`px-4 h-[40px] rounded-lg bg-white flex gap-2 items-center justify-center`}
+                            className={`px-4 h-[40px] rounded-lg bg-white flex gap-2 items-center justify-center border border-[#010101] shadow-sm`}
                             onClick={signIn}
                             disabled={address || loader || initLoader ? true : false}
                         >
                             <Image
-                                src={!address ? icons.googleIcon : icons.baseLogo}
+                                src={!address ? icons.lensLogo : icons.baseLogo}
                                 alt="google login"
                                 width={20}
                                 height={20}
@@ -136,7 +136,7 @@ const Header = (props: IHeader) => {
                                     <div></div>
                                 </div>
                             ) : (
-                                <span className="text-[16px] font-medium text-black/50 self-center my-auto">
+                                <span className="text-[16px] font-medium text-black self-center my-auto">
                                     {address ? trimAddress(address) : "Login"}
                                 </span>
                             )}
@@ -144,7 +144,7 @@ const Header = (props: IHeader) => {
                         <div className="relative" ref={menuRef}>
                             <button
                                 type="button"
-                                className="w-[40px] h-[40px] rounded-lg bg-white flex items-center justify-center "
+                                className="w-[40px] h-[40px] rounded-lg bg-white flex items-center justify-center border border-[#010101] shadow-sm"
                             >
                                 <Image
                                     src={icons.hamburgerBlack}
@@ -153,7 +153,7 @@ const Header = (props: IHeader) => {
                                     onClick={handleClick}
                                 />
                                 {opacity ? (
-                                    <div className="absolute top-12 bg-[#f5f5f5] rounded-lg hidden lg:block">
+                                    <div className="absolute top-12 bg-[#f5f5f5] rounded-lg hidden lg:block border border-black">
                                         <div className="min-w-[280px]">
                                             {address ? (
                                                 <>
@@ -184,7 +184,7 @@ const Header = (props: IHeader) => {
                                                     </div>
                                                     {isConnected &&
                                                         loggedInVia ===
-                                                            LOGGED_IN.EXTERNAL_WALLET && (
+                                                        LOGGED_IN.EXTERNAL_WALLET && (
                                                             <div
                                                                 className="w-[95%] h-[52px] bg-white rounded-lg mx-auto flex justify-between items-center px-4 mb-6"
                                                                 role="presentation"
@@ -200,20 +200,21 @@ const Header = (props: IHeader) => {
                                                 </>
                                             ) : null}
 
-                                            <div className="bg-white w-full px-4">
+                                            <div className="bg-white w-full px-4 rounded-b-lg">
                                                 {!isConnected ? (
                                                     <div
                                                         className="flex justify-between items-center py-6 border-b-2 cursor-pointer"
                                                         role="presentation"
-                                                        onClick={signIn}
+                                                    // onClick={signIn}
                                                     >
                                                         <div className="flex gap-2 items-center">
                                                             <Image
-                                                                src={icons.googleIcon}
-                                                                alt="login with google"
+                                                                src={icons.lensLogo}
+                                                                className="w-8"
+                                                                alt="login with lens"
                                                             />
                                                             <p className="text-black">
-                                                                Login with Google
+                                                                Login with Lens
                                                             </p>
                                                         </div>
                                                         <Image
@@ -247,17 +248,17 @@ const Header = (props: IHeader) => {
                                                     </div>
                                                 </Link>
                                                 {isConnected &&
-                                                loggedInVia === LOGGED_IN.GOOGLE ? (
+                                                    loggedInVia === LOGGED_IN.GOOGLE ? (
                                                     <div
                                                         className="flex justify-between items-center py-6 cursor-pointer"
                                                         role="presentation"
-                                                        onClick={handleLogout}
+                                                    // onClick={handleLogout}
                                                     >
                                                         <div className="flex gap-2 items-center">
-                                                            <Image
+                                                            {/* <Image
                                                                 src={icons.googleIcon}
                                                                 alt="login with google"
-                                                            />
+                                                            /> */}
                                                             <p className="text-black">
                                                                 Logout
                                                             </p>
